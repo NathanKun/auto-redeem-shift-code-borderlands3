@@ -53,7 +53,7 @@ func main() {
 // read saved SHiFT code file
 func readLastUsedShiftCode() string {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		err = ioutil.WriteFile(filename, []byte(""), 755)
+		err = ioutil.WriteFile(filename, []byte(""), 0755)
 		if err != nil {
 			log.Panic("Can not create file ", filename, err)
 		} else {
@@ -212,7 +212,7 @@ func sendEmail(feedItem *gofeed.Item) {
 }
 
 func writeUsedShiftCode(code string) {
-	err := ioutil.WriteFile(filename, []byte(code), 755)
+	err := ioutil.WriteFile(filename, []byte(code), 0755)
 	if err != nil {
 		log.Panic("Can not write to file ", filename, err)
 	} else {
