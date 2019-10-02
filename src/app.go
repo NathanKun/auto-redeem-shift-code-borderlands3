@@ -1,8 +1,8 @@
 package main
 
 import (
+	"catprogrammer.com/auto-redeem-shift-code-borderlands3/credentials"
 	"context"
-	"credentials"
 	"crypto/tls"
 	"fmt"
 	"github.com/chromedp/cdproto/cdp"
