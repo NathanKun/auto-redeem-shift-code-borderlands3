@@ -132,8 +132,6 @@ func redeemCode(code string) {
 			if len(msgNodes) > 0 && len(msgNodes[0].Children) > 0 {
 				log.Println(msgNodes[0].Children[0].NodeValue)
 			}
-			log.Println("msgNodes: ")
-			log.Println(msgNodes)
 		} else {
 			log.Panic(err)
 		}
