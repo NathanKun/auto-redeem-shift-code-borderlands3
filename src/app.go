@@ -45,6 +45,8 @@ func main() {
 		log.Println("Send Email")
 		sendEmail(feedItem)
 		writeUsedShiftCode(latestcode)
+	} else {
+		log.Println("No new SHiFT code")
 	}
 
 	log.Println("End")
@@ -151,12 +153,8 @@ func sendEmail(feedItem *gofeed.Item) {
 	}
 	message += fmt.Sprintf(emailBody, feedItem.Title, feedItem.Description)
 
-	log.Println("message:\n" + message)
-
 	host, _, _ := net.SplitHostPort(credentials.SmtpServer)
 	auth := smtp.PlainAuth("", credentials.SmtpUser, credentials.SmtpPassword, host)
-
-	log.Println("host:", host)
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
