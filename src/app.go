@@ -27,6 +27,10 @@ const (
 			<h3>%s</h3>
 			<h2>Description</h2>
 			<p>%s</p>
+			<h2>Redeem Result</h2>
+			<p>%s</p>
+			<h2>Redeem Notice</h2>
+			<p>%s</p>
 			</body></html>
 			`
 	chromedpTimeoutSec time.Duration = 30
@@ -41,9 +45,9 @@ func main() {
 	if len(savedcode) == 0 || savedcode != latestcode {
 		log.Println("Found new SHiFT code ", latestcode)
 		log.Println("Redeem code")
-		redeemCode(latestcode)
+		redeemResult, redeemNotice := redeemCode(latestcode)
 		log.Println("Send Email")
-		sendEmail(feedItem)
+		sendEmail(feedItem, redeemResult, redeemNotice)
 		writeUsedShiftCode(latestcode)
 	} else {
 		log.Println("No new SHiFT code")
@@ -91,7 +95,7 @@ func readFeed() *gofeed.Item {
 	return nil
 }
 
-func redeemCode(code string) {
+func redeemCode(code string) (string, string) {
 	// create context
 	ctx, cancel := chromedp.NewContext(context.Background(), chromedp.WithLogf(log.Printf))
 	defer cancel()
@@ -103,6 +107,7 @@ func redeemCode(code string) {
 	// run task list
 	var res string
 	var msgNodes []*cdp.Node
+	var noticeNodes []*cdp.Node
 	err := chromedp.Run(ctx, chromedp.Tasks{
 		// login page
 		chromedp.Navigate("https://shift.gearboxsoftware.com/home"),
@@ -122,9 +127,14 @@ func redeemCode(code string) {
 		chromedp.Nodes("#code_results", &msgNodes),
 		chromedp.Click(`//input[@name="commit"]`),
 		chromedp.Sleep(time.Second * 10),
+		chromedp.Nodes(".alert.notice", &noticeNodes),
 	})
 
 	// TODO: check if redeem success
+	notice := ""
+	if (len(noticeNodes) > 0) {
+		notice = noticeNodes[0].NodeValue
+	}
 
 	if err != nil {
 		if err.Error() == "context deadline exceeded" {
@@ -132,13 +142,17 @@ func redeemCode(code string) {
 			if len(msgNodes) > 0 && len(msgNodes[0].Children) > 0 {
 				log.Println(msgNodes[0].Children[0].NodeValue)
 			}
+			return msgNodes[0].XMLVersion, notice
 		} else {
-			log.Panic(err)
+			log.Println(err)
+			return err.Error(), notice
 		}
 	}
+
+	return "OK", notice
 }
 
-func sendEmail(feedItem *gofeed.Item) {
+func sendEmail(feedItem *gofeed.Item, redeemResult string, redeemNotice string) {
 	headers := make(map[string]string)
 	headers["From"] = credentials.SmtpUser
 	headers["To"] = credentials.SmtpSendTo
@@ -149,7 +163,7 @@ func sendEmail(feedItem *gofeed.Item) {
 	for k, v := range headers {
 		message += fmt.Sprintf("%s: %s\r\n", k, v)
 	}
-	message += fmt.Sprintf(emailBody, feedItem.Title, feedItem.Description)
+	message += fmt.Sprintf(emailBody, feedItem.Title, feedItem.Description, redeemResult, redeemNotice)
 
 	host, _, _ := net.SplitHostPort(credentials.SmtpServer)
 	auth := smtp.PlainAuth("", credentials.SmtpUser, credentials.SmtpPassword, host)
