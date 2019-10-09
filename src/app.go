@@ -8,8 +8,8 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 	"github.com/mmcdole/gofeed"
+	"github.com/op/go-logging"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/smtp"
 	"os"
@@ -36,24 +36,34 @@ const (
 	chromedpTimeoutSec time.Duration = 30
 )
 
+var log = logging.MustGetLogger("example")
+
 func main() {
-	log.Println("Start")
+	logBackend := logging.AddModuleLevel(logging.NewLogBackend(os.Stderr, "", 0))
+	if (credentials.LogLevel == "INFO") {
+		logBackend.SetLevel(logging.INFO, "")
+	} else {
+		logBackend.SetLevel(logging.ERROR, "")
+	}
+	logging.SetBackend(logBackend)
+
+	log.Info("Start")
 	feedItem := readFeed()
 	latestcode := feedItem.Title
 	savedcode := readLastUsedShiftCode()
 
 	if len(savedcode) == 0 || savedcode != latestcode {
-		log.Println("Found new SHiFT code ", latestcode)
-		log.Println("Redeem code")
+		log.Info("Found new SHiFT code", latestcode)
+		log.Info("Redeem code")
 		redeemResult, redeemNotice := redeemCode(latestcode)
-		log.Println("Send Email")
+		log.Info("Send Email")
 		sendEmail(feedItem, redeemResult, redeemNotice)
 		writeUsedShiftCode(latestcode)
 	} else {
-		log.Println("No new SHiFT code")
+		log.Info("No new SHiFT code")
 	}
 
-	log.Println("End")
+	log.Info("End")
 }
 
 // read saved SHiFT code file
@@ -61,19 +71,21 @@ func readLastUsedShiftCode() string {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		err = ioutil.WriteFile(filename, []byte(""), 0755)
 		if err != nil {
-			log.Panic("Can not create file ", filename, err)
+			log.Error("Can not create file ", filename, err)
+			panic(err)
 		} else {
-			log.Println("Created file ", filename)
+			log.Info("Created file ", filename)
 		}
 	}
 
 	b, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Panic("Can not read file ", filename, err)
+		log.Error("Can not read file ", filename, err)
+		panic(err)
 	}
 
 	data := string(b)
-	log.Println("Read SHiFT code: ", data)
+	log.Info("Read SHiFT code: ", data)
 	return data
 }
 
@@ -83,13 +95,15 @@ func readFeed() *gofeed.Item {
 	feed, err := fp.ParseURL(rssUrl)
 
 	if err != nil {
-		log.Panic("Can not parse RSS feed url ", rssUrl, err)
+		log.Error("Can not parse RSS feed url ", rssUrl, err)
+		panic(err)
 	}
 
 	if len(feed.Items) > 0 {
 		return feed.Items[0]
 	} else {
-		log.Panic("Feed items length is 0. Feed = ", feed)
+		log.Error("Feed items length is 0. Feed = ", feed)
+		panic(err)
 	}
 
 	return nil
@@ -97,7 +111,7 @@ func readFeed() *gofeed.Item {
 
 func redeemCode(code string) (string, string) {
 	// create context
-	ctx, cancel := chromedp.NewContext(context.Background(), chromedp.WithLogf(log.Printf))
+	ctx, cancel := chromedp.NewContext(context.Background(), chromedp.WithLogf(log.Infof))
 	defer cancel()
 
 	// create a timeout
@@ -138,13 +152,13 @@ func redeemCode(code string) (string, string) {
 
 	if err != nil {
 		if err.Error() == "context deadline exceeded" {
-			log.Println("context deadline exceeded")
+			log.Info("context deadline exceeded")
 			if len(msgNodes) > 0 && len(msgNodes[0].Children) > 0 {
-				log.Println(msgNodes[0].Children[0].NodeValue)
+				log.Info(msgNodes[0].Children[0].NodeValue)
 			}
 			return msgNodes[0].XMLVersion, notice
 		} else {
-			log.Println(err)
+			log.Info(err)
 			return err.Error(), notice
 		}
 	}
@@ -176,56 +190,66 @@ func sendEmail(feedItem *gofeed.Item, redeemResult string, redeemNotice string) 
 	// ssl connection
 	conn, err := tls.Dial("tcp", credentials.SmtpServer, tlsConfig)
 	if err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	// smtp client that use the ssl connection
 	c, err := smtp.NewClient(conn, host)
 	if err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	// auth
 	if err := c.Auth(auth); err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	// from, to
 	if err = c.Mail(credentials.SmtpUser); err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	if err = c.Rcpt(credentials.SmtpSendTo); err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	// content
 	w, err := c.Data()
 	if err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	_, err = w.Write([]byte(message))
 	if err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	err = w.Close()
 	if err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 
 	err = c.Quit()
 	if err != nil {
-		log.Panic("Send email error.", err)
+		log.Error("Send email error.", err)
+		panic(err)
 	}
 }
 
 func writeUsedShiftCode(code string) {
 	err := ioutil.WriteFile(filename, []byte(code), 0755)
 	if err != nil {
-		log.Panic("Can not write to file ", filename, err)
+		log.Error("Can not write to file ", filename, err)
+		panic(err)
 	} else {
-		log.Println("Wrote latest SHiFT code to file ", filename)
+		log.Info("Wrote latest SHiFT code to file ", filename)
 	}
 }
