@@ -49,7 +49,7 @@ func main() {
 
 	log.Info("Start")
 	feedItem := readFeed()
-	latestcode := feedItem.Title
+	latestcode := feedItem.Extensions["archive"]["shift"][0].Children["code"][0].Value
 	savedcode := readLastUsedShiftCode()
 
 	if len(savedcode) == 0 || savedcode != latestcode {
